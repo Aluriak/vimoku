@@ -1,0 +1,80 @@
+# vimoku
+
+Edit pages of a dokuwiki instance with your favorite editor.
+
+Use the [RPC-XML interface](https://www.dokuwiki.org/devel:xmlrpc) of dokuwiki, accessed using [dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc).
+
+
+# Installation
+## setup
+Install vimoku.py somewhere, make it executable. You probably want to rename it just `vimoku`, or create aliases in your dot files.
+
+Create a new repository with `git init`, and, in the `git/config` file, add the following section:
+You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CONFIG_HOME` is probably equal to `~/.config`) as follow:
+
+    [DEFAULT]
+    url = https://yourwiki.url.net
+    user = john
+    password = yourpassword
+
+The url is the url of your wiki. User and password are the login for the account you will use to publish your editions on the wiki.
+It therefore must be an existing dokuwiki user allowed to [use RTC calls](https://www.dokuwiki.org/devel:xmlrpc#get_it_working).
+
+## dependencies
+Only one, really : [dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc).
+There is no documentation, but [the code](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py)
+is short and understandable. You probably look for the [DokuWikiClient object](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py#L128).
+
+`pip install dokuwikixmlrpc` should be enough, probably with `--user`.
+You could also copy paste in place of the imports the [single source file of dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py) in vimoku.py. Don't forget to remove the (call to) main function.
+
+Tested with python 3.8. Should work with 3.6. Will not with 3.5 (sorry, f-strings are the best).
+
+
+
+# Usage
+Use `vimoku --help` for help.
+
+Basic usage:
+
+    vimoku pageid
+
+You can edit multiple pages, using standard dokuwiki naming conventions for categories:
+
+    vimoku categ1:page1 page2 categ2:categ3:page3
+
+And you may set a commit message (by default, it's `undocumented remote modification`):
+
+    vimoku page2 -m "guess from where i edit that page ??"
+
+Your editor will fire a first time, letting you modify the files you requested. It will fire a second time to let you modify, for each file, the commit message.
+And, if you opened other files, it will be fired a third time to ask you if they are wiki pages to retrieve and edit (see *cycling*).
+
+
+# tips
+## cycling
+Once in your editor, if you create more files in the temporary directory containing the files you asked for edition, they will not be removed.
+Instead, you will be prompted (using your $EDITOR) about which files you want to edit properly.
+
+The whole program will run again, this time retrieving the new files you asked for.
+
+NB: if you wrote things in those manually opened files, you will loose your data. Even if the page doesn't exists on the wiki. Yes, that sucks. Help me.
+
+
+## editor options
+Your `vimoku.ini` accept the following option: `editor_option`, which is formated with the variable `cwd`, the current working directory. Files to open are fed after those options.
+For instance, using vim, i ended up with the following value:
+
+    editor=/usr/bin/vim
+    editor_option=-c ":cd {cwd}" -p
+
+This ensures that vim opens each file in its tab (`-p`), and uses the temporary directory containing all files as working dir so opening more files is easy (`-c "…"`).
+
+
+# Work to be done
+
+- fix the data loss problem when writing a new file and asking the program to upload it.
+- what about using a watchdog to automatically download and lock the newly opened file ? Or provide a vim plugin ?
+- use the `--minor` flag
+- use `tmpfile` instead of flooding `.config/vimoku`
+- is it possible to upload a media ?
