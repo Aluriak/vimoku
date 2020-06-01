@@ -18,7 +18,6 @@ Example of valid vimoku.ini:
 
 
 import os
-import sys
 import time
 import shlex
 import shutil
@@ -39,34 +38,20 @@ def lprint(*args, **kwargs) -> print:
     if DEBUG:  return print(*args, **kwargs)
 
 
-def parse_cli() -> dict:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subs = parser.add_subparsers(dest='command')
-
-    # edition command
-    parser_edit = subs.add_parser('edit', description='Edit wiki pages')
-    parser_edit.add_argument('pages', nargs='+', type=str, help='pages to edit')
-    default_ini = os.environ.get('XDG_CONFIG_HOME', '~/.config') + '/vimoku/vimoku.ini'
-    parser_edit.add_argument('--config', '-c', type=str, help='configuration file to use', default=default_ini)
-    parser_edit.add_argument('--message', '-m', type=str, help='version message for the wiki', default=DEFAULT_MESSAGE)
-    parser_edit.add_argument('--editor', '-e', type=str, help='the editor to use', default=None)
-    parser_edit.add_argument('--minor', action='store_true', help='whether the modification is minor or not', default=False)
-    parser_edit.add_argument('--version', action='version', version='%(prog)s ' + __version__)
-
-    # move command
-    parser_move = subs.add_parser('move', description='Move wiki pages')
-    parser_edit.add_argument('pages', nargs='+', type=str, help='pages to edit')
-
-    # if no subcommand is given, add the edit command in the supplied args
-    if len(sys.argv) > 1 and sys.argv[1] not in subs.choices and ':' not in sys.argv[1]:
-        sys.argv.insert(1, 'edit')
-    return parser.parse_args()
-
-
 def read_config(configfile:str) -> (str, str, str):
     config = configparser.ConfigParser()
     config.read(os.path.expanduser(configfile))
     return config['DEFAULT']
+
+def parse_cli() -> dict:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('pages', nargs='+', type=str, help='pages to edit')
+    default_ini = os.environ.get('XDG_CONFIG_HOME', '~/.config') + '/vimoku/vimoku.ini'
+    parser.add_argument('--config', '-c', type=str, help='configuration file to use', default=default_ini)
+    parser.add_argument('--message', '-m', type=str, help='version message for the wiki', default=DEFAULT_MESSAGE)
+    parser.add_argument('--editor', '-e', type=str, help='the editor to use', default=None)
+    parser.add_argument('--minor', action='store_true', help='whether the modification is minor or not', default=False)
+    return parser.parse_args()
 
 def get_client(config:str) -> DokuWikiClient:
     conf = read_config(config)
@@ -266,10 +251,8 @@ def run_main_sequence(pages, message, config, client, cli_args):
 
 if __name__ == '__main__':
     args = parse_cli()
-    if args.command == 'edit' or args.command is None:  # default behavior
-        pages = args.pages
-        client = get_client(args.config)
-        while pages:
-            pages = run_main_sequence(pages, args.message, args.config, client, args)
-    elif args.command == 'move':
-        print('MOVE', args)
+    pages = args.pages
+    client = get_client(args.config)
+
+    while pages:
+        pages = run_main_sequence(pages, args.message, args.config, client, args)
