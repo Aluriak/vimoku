@@ -47,7 +47,7 @@ And you may set a commit message (by default, it's `undocumented remote modifica
 
     vimoku page2 -m "guess from where i edit that page ??"
 
-Your editor will fire a first time, letting you modify the files you requested. It will fire a second time to let you modify, for each file, the commit message.
+Your editor will fire a first time, letting you modify the pages you requested. It will fire a second time to let you modify, for each page, the commit message.
 And, if you opened other files, it will be fired a third time to ask you if they are wiki pages to retrieve and edit (see *cycling*).
 
 
