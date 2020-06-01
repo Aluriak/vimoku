@@ -22,6 +22,8 @@ You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CON
 The url is the url of your wiki. User and password are the login for the account you will use to publish your editions on the wiki.
 It therefore must be an existing dokuwiki user allowed to [use RTC calls](https://www.dokuwiki.org/devel:xmlrpc#get_it_working).
 
+Other options are available, notably `editor` to set the editor to choose and `editor_options` for its options. See [editor options section](#editor-options) for an example.
+
 ## setup (semi-manual)
 
     pip install vimoku  # don't forget to verify version of pip, python, OS, timeline, blahblah
@@ -131,7 +133,7 @@ NB: if you wrote things in those manually opened files, you will loose your data
 
 
 ## editor options
-Your `vimoku.ini` accept the following option: `editor_option`, which is formated with the variable `cwd`, the current working directory. Files to open are fed after those options.
+Your `vimoku.ini` accept the option `editor`, to explicitely set the editor if you don't trust your `$EDITOR` environment variable, and the option `editor_options`, which is formated with the variable `cwd`, the path to the directory holding the files you will be editing. Files to open are fed after those options.
 For instance, using vim, i ended up with the following value:
 
     editor=/usr/bin/vim
