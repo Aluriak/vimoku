@@ -57,9 +57,6 @@ def get_client(config:str) -> DokuWikiClient:
     conf = read_config(config)
     return DokuWikiClient(conf['url'], conf['user'], conf['password'])
 
-def get_editor(config:str, cli:str=None) -> DokuWikiClient:
-    return cli or read_config(config)['editor'] or 
-
 def try_lock(pagenames, client):
     if isinstance(pagenames, str): pagenames = [pagenames]
     r = client.set_locks({'lock': pagenames})
