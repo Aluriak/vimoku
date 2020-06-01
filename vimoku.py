@@ -236,7 +236,8 @@ def run_main_sequence(pages, message, config, client, cli_args):
         messages = setdict_sequence(editor, editor_options, {fname: message for fname in modified_files}, 'files', 'discard from upload')
 
     # upload
-    if not DRY_RUN: upload_work(modified_files, messages, client)
+    if not DRY_RUN and modified_files:
+        upload_work(modified_files, messages, client)
     if try_unlock(pages, client):  # TODO: improve to know exactly which files are not unlocked
         print("Couldn't unlock some pages (probably new files ?)")
 
