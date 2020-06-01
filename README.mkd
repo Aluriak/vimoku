@@ -78,3 +78,4 @@ This ensures that vim opens each file in its tab (`-p`), and uses the temporary 
 - use the `--minor` flag
 - use `tmpfile` instead of flooding `.config/vimoku`
 - is it possible to upload a media ?
+- there is few TODOs in the code.
