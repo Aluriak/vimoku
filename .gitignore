@@ -1,3 +1,5 @@
+Session.vim
+__pycache__/
 create-git-doku/
 venv/
-Session.vim
+vimoku.egg-info
