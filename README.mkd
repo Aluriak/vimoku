@@ -61,7 +61,7 @@ Your editor will fire a first time, letting you modify the pages you requested. 
 And, if you opened other files, it will be fired a third time to ask you if they are wiki pages to retrieve and edit (see *cycling*).
 
 
-## Move and copy [NOT IMPLEMENTED]
+## Move and copy
 Using flags `--move-to` and `--copy-to`, you can modify your wiki structure easily !
 The only difference between the two is that moving deletes the page after copy.
 Note the existence of specific flags, such as `--redirect` and `--fix-backlinks`. See the below examples.
