@@ -28,10 +28,10 @@ import configparser
 from dokuwikixmlrpc import DokuWikiClient, DokuWikiXMLRPCError
 
 
-DRY_RUN = True  # set to true to prevent any page modification
-DEFAULT_EDITOR = 'vi'  # used if $EDITOR is not set
+DEFAULT_EDITOR = 'vi'  # used if CLI, configfile and $EDITOR are empty.
 DEFAULT_MESSAGE = 'undocumented remote modification'
-DEBUG = True
+DEBUG = False  # set to true to get many lines of logging
+DRY_RUN = False  # set to true to prevent any page modification
 
 
 def lprint(*args, **kwargs) -> print:
