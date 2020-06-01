@@ -4,6 +4,8 @@ Edit pages of a dokuwiki instance with your favorite editor.
 
 Use the [RPC-XML interface](https://www.dokuwiki.org/devel:xmlrpc) of dokuwiki, accessed using [dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc).
 
+Tested with python 3.8. Should work with 3.6. Will not with 3.5 (sorry, f-strings are the best).
+
 
 # Installation
 ## setup (manual)
@@ -35,7 +37,6 @@ is short and understandable. You probably look for the [DokuWikiClient object](h
 `pip install dokuwikixmlrpc` should be enough, probably with `--user`.
 You could also copy paste in place of the imports the [single source file of dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py) in vimoku.py. Don't forget to remove the (call to) main function.
 
-Tested with python 3.8. Should work with 3.6. Will not with 3.5 (sorry, f-strings are the best).
 
 
 
