@@ -210,7 +210,7 @@ def cleanup_known(edition_dir, modified_files, known_files, client):
     return unkwnow_files
 
 
-def run_main_sequence(pages, message, config, client, edition_dir=None, cli_editor=None):
+def run_main_sequence(pages, message, config, client, cli_args):
     """Lock, retrieve, let user edit, upload and cleanup, the asked wiki pages.
     Return new pages that user may want to upload."""
     failed = set_all_locks(pages, client)
@@ -221,14 +221,14 @@ def run_main_sequence(pages, message, config, client, edition_dir=None, cli_edit
         lprint('locks set.')
 
     # Create the directory that will contain the page to edit
-    edition_dir = edition_dir or create_unique_dir(config)
+    edition_dir = create_unique_dir(config)
     if edition_dir is None:
         print("Couldn't create a temporary directory.\nAbort.")
         exit()
 
     # let's edit the pages
     editor_options = read_config(config)['editor_options']
-    editor = cli_editor or read_config(config)['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
+    editor = cli_args.editor or read_config(config)['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
     edition_dir, modified_files, all_files = edition_sequence(editor, editor_options, edition_dir, pages, client)
 
     # choose messages
@@ -254,4 +254,4 @@ if __name__ == '__main__':
     client = get_client(args.config)
 
     while pages:
-        pages = run_main_sequence(pages, args.message, args.config, client, cli_editor=args.editor)
+        pages = run_main_sequence(pages, args.message, args.config, client, args)
