@@ -74,16 +74,21 @@ Change the name of a page, if the new name is not an existing page, with a redir
 
     vimoku categ:pageid --move-to othercateg:newpageid --redirect
 
-Move a category `bar` into another (note the `:` that indicate that the *category*, not the page, is to be considered):
+Copy the category `bar` into another (note the `:` that indicate that the *category*, not the page, is to be considered):
 
-    vimoku bar: --move-to baz --redirect
+    vimoku bar: --copy-to baz
 
 Move all content of a category `bar` into `baz`, and put a redirection message in the moved pages:
 
     vimoku bar:* --move-to baz --redirect
 
+Rename a page, and fix all links that were linking to it before the renaming:
+
+    vimoku page --move-to movedpage --fix-backlinks
+
 Vimoku will try to detect any possible fault with what you provided,
 then will ask you to review the move with your editor. There, you can go wild and erase entire pages by not paying attention to what you do.
+
 
 ### Categories selection
 The next example shows some advanced details regarding categories.
