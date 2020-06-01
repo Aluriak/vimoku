@@ -33,6 +33,8 @@ Tested with python 3.8. Should work with 3.6. Will not with 3.5 (sorry, f-string
 
 
 # Usage
+
+## Edition
 Use `vimoku --help` for help.
 
 Basic usage:
@@ -49,6 +51,60 @@ And you may set a commit message (by default, it's `undocumented remote modifica
 
 Your editor will fire a first time, letting you modify the pages you requested. It will fire a second time to let you modify, for each page, the commit message.
 And, if you opened other files, it will be fired a third time to ask you if they are wiki pages to retrieve and edit (see *cycling*).
+
+
+## Move and copy [NOT IMPLEMENTED]
+Using flags `--move-to` and `--copy-to`, you can modify your wiki structure easily !
+The only difference between the two is that moving deletes the page after copy.
+Note the existence of specific flags, such as `--redirect` and `--fix-backlinks`. See the below examples.
+
+Change the name of a page, if the new name is not an existing page:
+
+    vimoku categ:pageid --move-to othercateg:newpageid
+
+Change the name of a page, if the new name is not an existing page, with a redirection in the old page to the new one:
+
+    vimoku categ:pageid --move-to othercateg:newpageid --redirect
+
+Move a category `bar` into another (note the `:` that indicate that the *category*, not the page, is to be considered):
+
+    vimoku bar: --move-to baz --redirect
+
+Move all content of a category `bar` into `baz`, and put a redirection message in the moved pages:
+
+    vimoku bar:* --move-to baz --redirect
+
+Vimoku will try to detect any possible fault with what you provided,
+then will ask you to review the move with your editor. There, you can go wild and erase entire pages by not paying attention to what you do.
+
+### Categories selection
+The next example shows some advanced details regarding categories.
+Let's consider the wiki containing the following pages:
+
+    a
+    b
+    b:d:e
+    b:f
+    c
+    c:g
+
+The following command:
+
+    vimoku a b: c --move-to h --redirect
+
+Should move the pages to obtain:
+
+    b
+    c:g
+    h:a
+    h:b:d:e
+    h:b:f
+    h:c
+
+If you also wanted to move `b` and `c:g`, you should indicate that you want to move `b` and `c:`, thus:
+
+    vimoku a b b: c c: --move-to h --redirect
+
 
 
 # tips
