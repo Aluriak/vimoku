@@ -81,7 +81,7 @@ def set_all_locks(pagenames, client) -> bool:
             already_locked.append(page)
         else:  # this one wasn't lockable: abort operation
             if try_unlock(already_locked, client):
-                print(f'warning: page {locked} was not unlocked.')
+                print(f'warning: page {already_locked} was not unlocked.')
             return [page for page in pagenames if page not in already_locked]
     else:  # everything ran smoothly, i.e. all pages are locked
         return []
@@ -121,11 +121,11 @@ def setdict_sequence(editor, editor_options, assocs:dict, objname='lines', actio
     # create the file to edit
     with tempfile.NamedTemporaryFile('w', delete=False) as fd:
         tmpfile = fd.name
-        print('TMP:', tmpfile)
+        # print('TMP:', tmpfile)
         max_key_len = max(map(len, simplassocs))
         for key, val in assocs.items():
-            fd.write(f"{revsimplassocs[key].rjust(max_key_len)}: {val}")
-        fd.write(f"\n\n# lines starting with a '#' will be ignored.\n# edit lines freely, but keep the colons.\n# delete {objname} you want to {action}.")
+            fd.write(f"{revsimplassocs[key].ljust(max_key_len)}: {val}\n")
+        fd.write(f"\n\n# lines starting with a '#' will be ignored.\n# edit lines freely, but keep the colons followed by a space.\n# delete {objname} you want to {action}.")
     # run the editor, retrieve the user's choice
     run_editor(editor, editor_options, [tmpfile])
     assocs = {}
@@ -180,9 +180,13 @@ def edition_sequence(editor, editor_options, edition_dir, pagenames, client):
     # detect and send the modified files
     modified_files = {}  # filename -> page
     for fname, (page, ini_hash) in filehashes.items():
-        with open(fname) as fd:  new_hash = hash(fd.read())
-        if new_hash != ini_hash:
-            modified_files[fname] = page
+        try:
+            with open(fname) as fd:  new_hash = hash(fd.read())
+        except FileNotFoundError:
+            pass  # it appears that user didn't want to edit that new file
+        else:
+            if new_hash != ini_hash:
+                modified_files[fname] = page
     return edition_dir, modified_files, set(filehashes.keys())
 
 
