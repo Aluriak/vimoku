@@ -15,6 +15,8 @@ Example of valid vimoku.ini:
 
 """
 
+__version__ = '1.0.0'
+
 
 
 import os

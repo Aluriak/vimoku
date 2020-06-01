@@ -1,0 +1,2 @@
+include vimoku.py
+exclude LICENCE MANIFEST.in README.mkd Makefile
