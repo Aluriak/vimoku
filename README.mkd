@@ -66,7 +66,7 @@ Your `vimoku.ini` accept the following option: `editor_option`, which is formate
 For instance, using vim, i ended up with the following value:
 
     editor=/usr/bin/vim
-    editor_option=-c ":cd {cwd}" -p
+    editor_options=-c ":cd {cwd}" -p
 
 This ensures that vim opens each file in its tab (`-p`), and uses the temporary directory containing all files as working dir so opening more files is easy (`-c "…"`).
 
@@ -79,3 +79,4 @@ This ensures that vim opens each file in its tab (`-p`), and uses the temporary 
 - use `tmpfile` instead of flooding `.config/vimoku`
 - is it possible to upload a media ?
 - there is few TODOs in the code.
+- find a way to implement deletion and renaming of dokuwiki pages in the CLI. Argparse subcommands ?
