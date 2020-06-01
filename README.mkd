@@ -6,7 +6,7 @@ Use the [RPC-XML interface](https://www.dokuwiki.org/devel:xmlrpc) of dokuwiki, 
 
 
 # Installation
-## setup
+## setup (manual)
 Install vimoku.py somewhere, make it executable. You probably want to rename it just `vimoku`, or create aliases in your dot files.
 
 Create a new repository with `git init`, and, in the `git/config` file, add the following section:
@@ -20,9 +20,16 @@ You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CON
 The url is the url of your wiki. User and password are the login for the account you will use to publish your editions on the wiki.
 It therefore must be an existing dokuwiki user allowed to [use RTC calls](https://www.dokuwiki.org/devel:xmlrpc#get_it_working).
 
+## setup (semi-manual)
+
+    pip install vimoku  # don't forget to verify version of pip, python, OS, timeline, blahblah
+
+Python dependencies are automatically installed, but you still need to install a `vimoku.ini` in your config directory. Only now, you have vimoku ready to fire with `python -m vimoku`.
+
+
 ## dependencies
 Only one, really : [dokuwikixmlrpc](https://github.com/kynan/dokuwikixmlrpc).
-There is no documentation, but [the code](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py)
+If you are to browse it, there is no documentation, but [the code](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py)
 is short and understandable. You probably look for the [DokuWikiClient object](https://github.com/kynan/dokuwikixmlrpc/blob/master/dokuwikixmlrpc.py#L128).
 
 `pip install dokuwikixmlrpc` should be enough, probably with `--user`.
@@ -133,6 +140,5 @@ This ensures that vim opens each file in its tab (`-p`), and uses the temporary 
 - what about using a watchdog to automatically download and lock the newly opened file ? Or provide a vim plugin ?
 - use the `--minor` flag
 - use `tmpfile` instead of flooding `.config/vimoku`
-- is it possible to upload a media ?
+- is it possible to upload a media ? yes, it is. see `client.put_file`
 - there is few TODOs in the code.
-- find a way to implement deletion and renaming of dokuwiki pages in the CLI. Argparse subcommands ?
