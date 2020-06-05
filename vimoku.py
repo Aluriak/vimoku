@@ -8,7 +8,7 @@ such as the wiki instance to target.
 
 Example of valid vimoku.ini:
 
-    [default]
+    [wiki:default]
     url = https://wiki.example.com
     user = john
     password = qwerty
@@ -27,15 +27,49 @@ import tempfile
 import argparse
 import subprocess
 import configparser
+from collections import defaultdict
 from dokuwikixmlrpc import DokuWikiClient, DokuWikiXMLRPCError
 
 
 DEFAULT_EDITOR = 'vi'  # used if CLI, configfile and $EDITOR are empty.
 DEFAULT_MESSAGE = 'undocumented remote modification'
-DEBUG = False  # set to true to get many lines of logging
+DEBUG = True  # set to true to get many lines of logging
 DRY_RUN = False  # set to true to prevent any page modification
 REDIRECTION = 'This page has been moved [[{newname}|here]].'
 TERM_WIDTH = shutil.get_terminal_size().columns
+INI_SECTION_OPTIONS = 'options'
+INI_WIKI_MARKER = 'wiki:'  # prefix that indicates that a INI section describes a wiki
+WIKI_SEP = ':::'  # the token separating wiki and page name in the file names
+INPUT_WIKI_SEP = '/'  # another wiki seperator accepted in CLI
+
+
+def sanitize_input_pagename(name:str):
+    if INPUT_WIKI_SEP in name:
+        assert name.count(INPUT_WIKI_SEP) == 1
+        name = name.replace(INPUT_WIKI_SEP, WIKI_SEP, 1)
+    return name
+
+def fullpagename_from_wiki_page(wiki:str, pagename:str) -> str:
+    assert WIKI_SEP not in pagename
+    return wiki + WIKI_SEP + pagename
+
+def wiki_page_from_fullpagename(fullpagename:str, default:str) -> (str, str):
+    if WIKI_SEP in fullpagename:
+        assert fullpagename.count(WIKI_SEP) == 1
+        return fullpagename.split(WIKI_SEP)
+    else:  # no wiki given, use the default
+        return default, fullpagename
+
+def client_page_from_fullpagename(fullpagename:str, clients) -> (DokuWikiClient, str):
+    if isinstance(clients, DokuWikiClient):  # clients was already chosen for this page
+        _, p = wiki_page_from_fullpagename(fullpagename, default=None)
+        return clients, p  # we can only hope that choice was wise
+    else:  # we got a real ClientBatch instance
+        w, p = wiki_page_from_fullpagename(fullpagename, default=clients.default_name)
+        return clients[w], p
+
+def wikiname_from_fullname(fullpagename:str, default:str):
+    return wiki_page_from_fullpagename(fullpagename, default)[0]
 
 
 def lprint(*args, **kwargs) -> print:
@@ -64,12 +98,48 @@ def parse_cli() -> dict:
 def read_config(configfile:str) -> (str, str, str):
     config = configparser.ConfigParser()
     config.read(os.path.expanduser(configfile))
-    return config['DEFAULT']
+    return config
 
-def get_client(config:str) -> DokuWikiClient:
+
+def pages_by_client(pagenames:[str], clients) -> {DokuWikiClient: [str]}:
+    """Return the map between each client and the pagenames in the wiki they are describing"""
+    assoc = defaultdict(list)
+    for pagename in pagenames:
+        client, page = client_page_from_fullpagename(pagename, clients)
+        assoc[client].append(page)
+    return dict(assoc)
+
+
+class ClientBatch():
+    """A proxy to access DokuWikiClient instances based on their name.
+    Only create the DokuWikiClient instance when asked (that feature
+    is the reason why we enclose that in a dedicated object)"""
+    def __init__(self, configfile:str):
+        self.config = configparser.ConfigParser()
+        self.config.read(os.path.expanduser(configfile))
+        self.clients = {}  # name -> DokuWikiClient
+        lprint('detected wikis:', ', '.join(self.sections()))
+    @property
+    def default_name(self) -> str:
+        return self.config['options'].get('default_wiki', 'wiki:default')
+    def default(self) -> DokuWikiClient:
+        return self[self.default_name]
+    def sections(self):
+        return set(s[len(INI_WIKI_MARKER):] for s in self.config.sections() if s.startswith(INI_WIKI_MARKER))
+    def __getitem__(self, name) -> DokuWikiClient:
+        sections = self.sections()
+        if name in sections:
+            if name not in self.clients:  # not yet created, let's initialize it
+                self.clients[name] = get_client_from_parsed_config(self.config[INI_WIKI_MARKER + name])
+            return self.clients[name]
+        raise KeyError(f"Configuration file doesn't define a wiki named '{name}'. Candidates: " + ', '.join(sections))
+
+def get_clients(configfile:str) -> ClientBatch:
+    return ClientBatch(configfile)
+
+def get_client_from_parsed_config(config:configparser.ConfigParser) -> DokuWikiClient:
     """Create the DokuWikiClient instance, and patch it with more functions"""
-    conf = read_config(config)
-    client = DokuWikiClient(conf['url'], conf['user'], conf['password'])
+    client = DokuWikiClient(config['url'], config['user'], config['password'])
     def with_additional_methods(theclient):
         def page(pagename:str, rev=None):
             "Wraps client.page to make it reject category name such as 'page:'"
@@ -103,34 +173,40 @@ def get_client(config:str) -> DokuWikiClient:
 
 def get_editor_and_options(configfile:str):
     config = read_config(configfile)
-    editor_options = config['editor_options']
-    editor = config['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
+    editor_options = config['options']['editor_options']
+    editor = config['options']['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
     return editor, editor_options
 
-def try_lock(pagenames, client):
-    if isinstance(pagenames, str): pagenames = [pagenames]
-    r = client.set_locks({'lock': pagenames})
-    if all(page in r['locked'] for page in pagenames): return True
-    else:
-        assert any(page in r['lockfail'] for page in pagenames), r
-        return False
+def try_lock(allpagenames, clients):
+    if isinstance(allpagenames, str): allpagenames = [allpagenames]
+    for client, pagenames in pages_by_client(allpagenames, clients).items():
+        r = client.set_locks({'lock': pagenames})
+        if all(page in r['locked'] for page in pagenames):
+            continue
+        else:
+            assert any(page in r['lockfail'] for page in pagenames), r
+            return False
+    return True
 
-def try_unlock(pagenames, client):
-    if isinstance(pagenames, str): pagenames = [pagenames]
-    r = client.set_locks({'unlock': pagenames})
-    if all(page in r['unlocked'] for page in pagenames): return True
-    else:
-        assert any(page in r['unlockfail'] for page in pagenames)
-        return False
+def try_unlock(allpagenames, client):
+    if isinstance(allpagenames, str): allpagenames = [allpagenames]
+    for client, pagenames in pages_by_client(allpagenames, clients).items():
+        r = client.set_locks({'unlock': pagenames})
+        if all(page in r['unlocked'] for page in pagenames):
+            continue
+        else:
+            assert any(page in r['unlockfail'] for page in pagenames)
+            return False
+    return True
 
-def set_all_locks(pagenames, client) -> bool:
+def set_all_locks(pagenames, clients) -> bool:
     """Try to set locks on all given pages ; return True on success"""
     already_locked = []
     for page in pagenames:
-        if try_lock(page, client):
+        if try_lock(page, clients):
             already_locked.append(page)
         else:  # this one wasn't lockable: abort operation
-            if try_unlock(already_locked, client):
+            if try_unlock(already_locked, clients):
                 print(f'warning: page {already_locked} was not unlocked.')
             return [page for page in pagenames if page not in already_locked]
     else:  # everything ran smoothly, i.e. all pages are locked
@@ -149,8 +225,9 @@ def create_unique_dir(config) -> str:
 
 def run_editor(editor, editor_options, filenames):
     """Run editor properly. Finishes when user finishes."""
+    # print('FILES TO EDIT:', ', '.join(filenames))
     comdir = os.path.commonpath(tuple(filenames))
-    if os.path.isfile(comdir):
+    if not os.path.isdir(comdir):  # isfile would return False if there is only 1 filename, that is a new file not yet created on the system
         comdir = os.path.dirname(comdir)
     options = shlex.split(editor_options.format(cwd=comdir))
     command = [editor, *options, *filenames]
@@ -207,44 +284,45 @@ def choice_sequence(editor, editor_options, choices, objname='lines', action='re
     return kept
 
 
-def edition_sequence(editor, editor_options, edition_dir, pagenames, client):
+def edition_sequence(editor, editor_options, edition_dir, fullpagenames, clients):
     # retrieve each page, put it in the edition directory
-    client = client or get_client(config)
     filehashes = {}  # filename -> (page, hash)   (to later determine if a modification was made)
-    for page in pagenames:
-        fname = edition_dir + '/' + page
-        if client.has_page(page):
-            content = client.page(page)
+    for fullpagename in fullpagenames:
+        client, pagename = client_page_from_fullpagename(fullpagename, clients)
+        fname = edition_dir + '/' + fullpagename
+        if client.has_page(pagename):
+            content = client.page(pagename)
             with open(fname, 'w') as fd:
                 fd.write(content)
         else:  # page does not exists
-            print(f"warning: page {page} couldn't be found on remote wiki")
+            print(f"warning: page {pagename} couldn't be found on remote wiki '{wikiname_from_fullname(fullpagename, clients.default_name)}'")
             content = None
             # NB: if the file doesn't exist, let the editor create it ; it will indicate the «new file» status to the user, confirming the inexistance of the file on the wiki.
-        filehashes[fname] = page, hash(content)
+        filehashes[fname] = fullpagename, hash(content)
     # edition
     run_editor(editor, editor_options, filehashes)
     # detect and send the modified files
     modified_files = {}  # filename -> page
-    for fname, (page, ini_hash) in filehashes.items():
+    for fname, (fullpagename, ini_hash) in filehashes.items():
         try:
             with open(fname) as fd:  new_hash = hash(fd.read())
         except FileNotFoundError:
             pass  # it appears that user didn't want to edit that new file
         else:
             if new_hash != ini_hash:
-                modified_files[fname] = page
+                modified_files[fname] = fullpagename
     return edition_dir, modified_files, set(filehashes.keys())
 
 
-def upload_work(modified_files, messages:dict, client):
+def upload_work(modified_files, messages:dict, clients):
     """Upload the given modified pages on the wiki"""
-    for fname, page in modified_files.items():
+    for fname, fullpage in modified_files.items():
         with open(fname) as fd: new_content = fd.read()
         message = messages[fname]
+        client, page = client_page_from_fullpagename(fullpage, clients)
         r = client.put_page(page, new_content, message or DEFAULT_MESSAGE)
         if r is not None:
-            raise ValueError(f"Unexpected output for upload of page {page}: {r}")
+            raise ValueError(f"Unexpected output for upload of page {fullpage}: {r}")
 
 
 def cleanup_known(edition_dir, modified_files, known_files, client):
@@ -261,15 +339,15 @@ def cleanup_known(edition_dir, modified_files, known_files, client):
     return unkwnow_files
 
 
-def edit_pages(pages, message, config, client, cli_args):
+def edit_pages(pages, message, config, clients, cli_args):
     while pages:
-        pages = run_main_sequence(pages, message, config, client, cli_args)
+        pages = run_main_sequence(pages, message, config, clients, cli_args)
 
 
-def run_main_sequence(pages, message, config, client, cli_args):
+def run_main_sequence(pages, message, config, clients, cli_args):
     """Lock, retrieve, let user edit, upload and cleanup, the asked wiki pages.
     Return new pages that user may want to upload."""
-    failed = set_all_locks(pages, client)
+    failed = set_all_locks(pages, clients)
     if failed:
         print(f"{len(failed)} pages were not locked: " + ', '.join(failed))
         print("Abort.")
@@ -284,7 +362,7 @@ def run_main_sequence(pages, message, config, client, cli_args):
 
     # let's edit the pages
     editor, editor_options = get_editor_and_options(config)
-    edition_dir, modified_files, all_files = edition_sequence(editor, editor_options, edition_dir, pages, client)
+    edition_dir, modified_files, all_files = edition_sequence(editor, editor_options, edition_dir, pages, clients)
 
     # choose messages
     if modified_files:
@@ -292,39 +370,41 @@ def run_main_sequence(pages, message, config, client, cli_args):
 
     # upload
     if not DRY_RUN and modified_files:
-        upload_work(modified_files, messages, client)
-    if try_unlock(pages, client):  # TODO: improve to know exactly which files are not unlocked
+        upload_work(modified_files, messages, clients)
+    if try_unlock(pages, clients):  # TODO: improve to know exactly which files are not unlocked
         print("Couldn't unlock some pages (probably new files ?)")
 
     # cleanup
-    new_files = tuple(map(os.path.basename, cleanup_known(edition_dir, modified_files, all_files, client)))
+    new_files = tuple(map(os.path.basename, cleanup_known(edition_dir, modified_files, all_files, clients)))
     if new_files:
         new_files = choice_sequence(editor, editor_options, new_files, 'files', 'discard from upload')
     print(f"Done !  ({len(modified_files) or 'no'} files uploaded, {len(new_files) or 'no'} new files)")
     return new_files
 
 
-def move_page(pagename:str, newname:str, client, delete_source:bool, redirect:bool):
+def move_page(fullpagename:str, newfullname:str, clients, delete_source:bool, redirect:bool):
     if DRY_RUN:
-        lprint(f"{'MV' if delete_source else 'CP'} {pagename}\t->\t{newname}")
-        return
+        lprint(f"{'MV' if delete_source else 'CP'} {fullpagename}\t->\t{newfullname}")
+        return True  # mock the move
     # create the target page
-    if try_lock(newname, client):
-        content = client.page(pagename)
-        r = client.put_page(newname, content, f'moved from {pagename}')
+    client_src, pagename = client_page_from_fullpagename(fullpagename, clients)
+    client_trg, newname = client_page_from_fullpagename(newfullname, clients)
+    if try_lock(newname, client_trg):
+        content = client_src.page(pagename)
+        r = client_trg.put_page(newname, content, f'moved from {fullpagename}')
         if r is not None:
-            raise ValueError(f"Unexpected output for upload of page {newname}: {r}")
+            raise ValueError(f"Unexpected output for upload of page {newfullname}: {r}")
         # delete the source if asked to
         if delete_source:
-            if try_lock(pagename, client):
-                content = REDIRECTION.format(newname=newname, pagename=pagename) if redirect else ''
-                client.put_page(pagename, content, f'moved to {newname}')
-                try_unlock(pagename, client)
+            if try_lock(pagename, client_src):
+                content = REDIRECTION.format(newname=newfullname, pagename=fullpagename) if redirect else ''
+                client_src.put_page(pagename, content, f'moved to {newfullname}')
+                try_unlock(pagename, client_src)
             else:
                 print(f"Source {pagename} couldn't be deleted (locked)")
         # unlock and quit
-        if not try_unlock(newname, client):
-            lprint(f"Couldn't unlock page {pagename}.")
+        if not try_unlock(newname, client_trg):
+            lprint(f"Couldn't unlock page {newfullname}.")
         return True
 
 def list_named_pages(pagenames:[str], client) -> [str]:
@@ -342,7 +422,7 @@ def list_named_pages(pagenames:[str], client) -> [str]:
 
 
 
-def compute_moves(pagenames:[str], target:str, client):
+def compute_moves(fullpagenames:[str], fulltarget:str, clients):
     """Yield pairs (pagename, new moved names), describing a move to perform.
     If a file cannot be moved, its associated value is None"""
     def is_explicit_category(name:str) -> bool:  return name.endswith(':')
@@ -350,48 +430,55 @@ def compute_moves(pagenames:[str], target:str, client):
     def basename(pagename:str) -> str:
         "Return the page name, without the categories"
         return pagename.split(':')[-1]
-    def is_movable(pagename:str, category:str) -> bool:
-        "true if moving pagename to category wouldn't overwrite an existing page"
-        return not client.has_page(moved_name(pagename, category))
     def moved_name(pagename:str, category:str) -> str:
         "the name of the page that would result in moving given pagename to category"
         return f'{category.rstrip(":")}:{basename(pagename)}'
+    def is_movable(pagename:str, category:str) -> bool:
+        "true if moving pagename to category wouldn't overwrite an existing page"
+        return not client_trg.has_page(moved_name(pagename, category))
 
-    if client.has_page(target):  # target is an existing page. It therefore must be understood as a category
+    client_trg, target = client_page_from_fullpagename(fulltarget, clients)
+    if client_trg.has_page(target):  # target is an existing page. It therefore must be understood as a category
         target += ':'
+    target_wiki = wikiname_from_fullname(fulltarget, clients.default_name)
 
-    if len(pagenames) == 1 and not pagename[0].endswith((':', ':*')):  # it's a single page
-        pagename = pagenames[0]
-        if client.has_page(pagename):
+    if len(fullpagenames) == 1 and not fullpagenames[0].endswith((':', ':*')):  # it's a single page
+        fullpagename = fullpagenames[0]
+        client_src, pagename = client_page_from_fullpagename(fullpagename, clients)
+        if client_src.has_page(pagename):
             if target_is_explicit_category():
                 if is_movable(pagename, target):
-                    yield pagename, moved_name(pagename, target)
+                    yield fullpagename, fullpagename_from_wiki_page(target_wiki, moved_name(pagename, target))
                 else:
                     print("error: Page {moved_name(pagename, target)} already exists, can't move {pagename} to {target}.")
-                    yield pagename, None
+                    yield fullpagename, None
             else:  # target is a non existing page
-                assert not client.has_page(target)
-                yield pagename, target  # direct renaming
+                if client_trg.has_page(target):
+                    raise ValueError("Wiki {target_wiki} already has a page {target}.")
+                yield fullpagename, target  # direct renaming
         else:
-            print('error: Page {pagename} does not exists.')
+            print(f'error: Page {fullpagename} does not exists.')
             yield None, pagename  # first item being None is equivalent to "that page doesn't exists"
     else:  # there is multiple pages to move (multiple pagenames, or one pagename that is a category)
-        # target must be a category
+        # target must be a category (because it can't be a file)
         if not target.endswith(':'): target += ':'
         # lets handle all inputs, one argument at a time
-        for pagename in pagenames:
-            subpages = tuple(list_named_pages([pagename], client))
-            # print('FLT:', pagename, subpages)
+        for fullpagename in fullpagenames:
+            source_wiki = wikiname_from_fullname(fullpagename, clients.default_name)
+            client_src, pagename = client_page_from_fullpagename(fullpagename, clients)
+            subpages = tuple(list_named_pages([pagename], client_src))
+            # print('FLT:', fullpagename, pagename, subpages)
             if pagename.endswith(':'):  # take only the content
                 subnewnames = {subpage: target + subpage[len(basename(pagename[-1])):] for subpage in subpages}
             elif pagename.endswith(':*'):  # take only the content
                 subnewnames = {subpage: target + subpage[len(pagename)-1:] for subpage in subpages}
             else:  # it's a single page to move
-                assert client.has_page(pagename)
-                yield pagename, moved_name(pagename, target)
+                assert client_src.has_page(pagename)
+                yield fullpagename, fullpagename_from_wiki_page(target_wiki, moved_name(pagename, target))
                 continue
             for subpage, subnewname in subnewnames.items():
-                yield subpage, subnewname if is_movable(subpage, subnewname) else None
+                fullsubnewname = fullpagename_from_wiki_page(target_wiki, subnewname)
+                yield fullpagename_from_wiki_page(source_wiki, subpage), fullsubnewname if is_movable(subpage, subnewname) else None
 
 
 def substitute_in_page(pagename, substitutions:dict, message:str, client):
@@ -415,11 +502,11 @@ def save_list_into_tempfile(to_save:iter) -> str:
             fd.write(str(obj) + '\n')
         return fd.name
 
-def move_pages(pagenames:[str], target:str, config:str, client, delete_source:bool=False, redirect:bool=False, fix_backlinks:bool=False):
+def move_pages(pagenames:[str], target:str, config:str, clients, delete_source:bool=False, redirect:bool=False, fix_backlinks:bool=False):
     """Move given pages to given category, iif the pages exists,
     and if this wouldn't lead to any suppression."""
     # get moves, ensure all are possible
-    moves = dict(compute_moves(pagenames, target, client))
+    moves = dict(compute_moves(pagenames, target, clients))
     if not all(moves.values()) or not all(moves):  # any of them being None/impossible to move ?
         print('error: Abort.')
         return
@@ -429,7 +516,7 @@ def move_pages(pagenames:[str], target:str, config:str, client, delete_source:bo
     moves = setdict_sequence(editor, editor_options, moves, objname='renames' if delete_source else 'copies', action='cancel')
 
     # make the moves, fix backlinks
-    unmoved_pages, unfixed_pages = {}, {}
+    unmoved_pages, unfixed_pages = set(), set()
     for idx, (page, newname) in enumerate(moves.items(), start=1):
         print('\r' + TERM_WIDTH * ' ', end='', flush=True)
         print(f'\rmoving page {idx} of {len(moves)}…', end='', flush=False)
@@ -440,7 +527,7 @@ def move_pages(pagenames:[str], target:str, config:str, client, delete_source:bo
                 if not substitute_in_page(backlinker, {'[['+page: '[['+newname, '|'+page: '|'+newname}, f"fix links to newly moved {newname}", client):
                     unfixed_pages.add(backlinker)  # one more page that couldn't be modified
             # raise NotImplementedError("fix_backlinks option is not yet implemented")
-        if not move_page(page, newname, client, delete_source, redirect):
+        if not move_page(page, newname, clients, delete_source, redirect):
             unmoved_pages.add(page)  # one more page that couldn't be moved
     print()  # jump line
 
@@ -461,32 +548,29 @@ def move_pages(pagenames:[str], target:str, config:str, client, delete_source:bo
     for line in comment:
         print(line)
 
-    # do all page exists ?
-    # what is their basename (pagename minus categories) ?
-    # do any {category}:{basename} already exists ?
-    # lock them all (pagenames and movenames)
-    # edit them
-
 
 if __name__ == '__main__':
     args = parse_cli()
-    client = get_client(args.config)
+    # client = get_client(args.config)
+    clients = get_clients(args.config)
+    pages = tuple(map(sanitize_input_pagename, args.pages))
 
     # for p in 'cours,cours:,cours:lbienvenu,cours:lbienvenu:'.split(','):
     # for p in 'perso:testremotemove:a,perso:testremotemove:b'.split(','):
         # has = client.has_page(p)
         # content = client.page(p) if has and not p.endswith(':') else ''
         # print(p, has, len(content))
+    # print(clients)
     # exit()
 
     if args.move_to:
         lprint('MOVE', args)
-        move_pages(args.pages, args.move_to, args.config, client, delete_source=True, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
+        move_pages(pages, sanitize_input_pagename(args.move_to), args.config, clients, delete_source=True, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
     elif args.copy_to:
         lprint('COPY', args)
-        move_pages(args.pages, args.move_to, args.config, client, delete_source=False, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
+        move_pages(pages, sanitize_input_pagename(args.move_to), args.config, clients, delete_source=False, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
     else:  # just do page edition
         lprint('EDIT', args)
-        edit_pages(args.pages, args.message, args.config, client, args)
+        edit_pages(pages, args.message, args.config, clients, args)
     if DRY_RUN:
         print('\nNB: that was a dry run')

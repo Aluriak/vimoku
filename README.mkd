@@ -7,6 +7,7 @@ Use the [RPC-XML interface](https://www.dokuwiki.org/devel:xmlrpc) of dokuwiki, 
 Tested with python 3.8. Should work with 3.6. Will not with 3.5 (sorry, f-strings are the best).
 
 
+
 # Installation
 ## setup (manual)
 Install vimoku.py somewhere, make it executable. You probably want to rename it just `vimoku`, or create aliases in your dot files.
@@ -14,7 +15,7 @@ Install vimoku.py somewhere, make it executable. You probably want to rename it 
 Create a new repository with `git init`, and, in the `git/config` file, add the following section:
 You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CONFIG_HOME` is probably equal to `~/.config`) as follow:
 
-    [DEFAULT]
+    [wiki:default]
     url = https://yourwiki.url.net
     user = john
     password = yourpassword
@@ -22,7 +23,8 @@ You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CON
 The url is the url of your wiki. User and password are the login for the account you will use to publish your editions on the wiki.
 It therefore must be an existing dokuwiki user allowed to [use RTC calls](https://www.dokuwiki.org/devel:xmlrpc#get_it_working).
 
-Other options are available, notably `editor` to set the editor to choose and `editor_options` for its options. See [editor options section](#editor-options) for an example.
+Other options are available, notably `editor` to set the editor to choose and `editor_options` for its options. See [editor options section](#editor-options) for an example. This readme explains more options and features.
+
 
 ## setup (semi-manual)
 
@@ -121,8 +123,45 @@ If you also wanted to move `b` and `c:g`, you should indicate that you want to m
     vimoku a b b: c c: --move-to h --redirect
 
 
+## Edit on different dokuwiki instances
+Vimoku supports the existence of many wikis in the configuration file. This is achieved by populating your `vimoku.ini` with different wikis.
+This also allows you to handle multiple identities on a single wiki.
+The following ini file provides an example of three different accounts on two different wikis, setting one of them as the default:
+
+    [wiki:default]
+    url = https://wiki.one.example.net
+    user = john
+    password = passwordone
+    [wiki:second]
+    url = https://wiki.two.example.net
+    user = john
+    password = passwordtwo
+    [wiki:alt]
+    url = https://wiki.one.example.net
+    user = mysteriousguy
+    password = mysteriouspassword
+
+Now, you can specify explicitely which wiki to consider when using the CLI. For instance, you could edit a page using your alternative identity on the first wiki:
+
+    vimoku categ:page alt:::page second/page
+
+This will enable you to edit `categ:page` on the `default` wiki, `page` with your alternative identity on the same wiki, and `page` on the `second` wiki.
+Slash or triple colons means the same thing.
+
+You can also copy from one instance to another, here copying all meeting reports from wiki one to wiki two:
+
+    vimoku one/meeting:* --copy-to two/meeting:
+
+More details:
+- slashes are accepted in input as wiki separator, but internally the token triple colon `:::` is used.
+- before the slash/triple colon is the wiki name, as defined in the configuration file. After the slash/triple colon is the page name in the remote wiki.
+- when no wiki name is given, `default` is used. You can [change this](#set-a-different-default-wiki).
+
+
 
 # tips
+
+
 ## cycling
 Once in your editor, if you create more files in the temporary directory containing the files you asked for edition, they will not be removed.
 Instead, you will be prompted (using your $EDITOR) about which files you want to edit properly.
@@ -136,17 +175,35 @@ NB: if you wrote things in those manually opened files, you will loose your data
 Your `vimoku.ini` accept the option `editor`, to explicitely set the editor if you don't trust your `$EDITOR` environment variable, and the option `editor_options`, which is formated with the variable `cwd`, the path to the directory holding the files you will be editing. Files to open are fed after those options.
 For instance, using vim, i ended up with the following value:
 
+    [options]
     editor=/usr/bin/vim
     editor_options=-c ":cd {cwd}" -p
 
 This ensures that vim opens each file in its tab (`-p`), and uses the temporary directory containing all files as working dir so opening more files is easy (`-c "…"`).
 
 
+## Set a different default wiki
+When setting multiple wikis in your ini file, you may use the option `default_wiki` to provide which wiki to use when no name is given. Example:
+
+    [options]
+    default_wiki = second
+    [wiki:first]
+    url = https://wiki.one.example.net
+    user = john
+    password = passwordone
+    [wiki:second]
+    url = https://wiki.two.example.net
+    user = john
+    password = passwordtwo
+
+
+
+
 # Work to be done
 
 - fix the data loss problem when writing a new file and asking the program to upload it.
 - what about using a watchdog to automatically download and lock the newly opened file ? Or provide a vim plugin ?
-- use the `--minor` flag
+- use the CLI's `--minor` flag
 - use `tmpfile` instead of flooding `.config/vimoku`
 - is it possible to upload a media ? yes, it is. see `client.put_file`
 - there is few TODOs in the code.
