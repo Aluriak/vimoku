@@ -455,7 +455,7 @@ def compute_moves(fullpagenames:[str], fulltarget:str, clients):
             else:  # target is a non existing page
                 if client_trg.has_page(target):
                     raise ValueError("Wiki {target_wiki} already has a page {target}.")
-                yield fullpagename, target  # direct renaming
+                yield fullpagename, fullpagename_from_wiki_page(target_wiki, target)  # direct renaming
         else:
             print(f'error: Page {fullpagename} does not exists.')
             yield None, pagename  # first item being None is equivalent to "that page doesn't exists"
