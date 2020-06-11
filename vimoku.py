@@ -438,7 +438,7 @@ def compute_moves(fullpagenames:[str], fulltarget:str, clients):
         return not client_trg.has_page(moved_name(pagename, category))
 
     client_trg, target = client_page_from_fullpagename(fulltarget, clients)
-    if client_trg.has_page(target):  # target is an existing page. It therefore must be understood as a category
+    if client_trg.has_page(target) and not target.endswith(':'):  # target is an existing page. It therefore must be understood as a category
         target += ':'
     target_wiki = wikiname_from_fullname(fulltarget, clients.default_name)
 
