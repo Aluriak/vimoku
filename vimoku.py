@@ -521,6 +521,7 @@ def move_pages(pagenames:[str], target:str, config:str, clients, delete_source:b
         print('\r' + TERM_WIDTH * ' ', end='', flush=True)
         print(f'\rmoving page {idx} of {len(moves)}…', end='', flush=False)
         if fix_backlinks:
+            client, page = client_page_from_fullpagename(page, clients)
             backlinkers = client.backlinks(page)
             for blidx, backlinker in enumerate(backlinkers, start=1):
                 print(f'\rmoving page {idx} of {len(moves)}… fix {blidx}/{len(backlinkers)} backlinks…', end='', flush=True)
