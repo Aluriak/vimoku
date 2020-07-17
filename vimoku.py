@@ -255,6 +255,7 @@ def setdict_sequence(editor_cmd, assocs:dict, objname='lines', action='remove fr
     """Provide user with a list of lines. Return those that weren't deleted"""
     # get the best key representation
     def simplified_key(key:str) -> str:
+        # print('SIMPLIFIED_KEY:', key, '\t####\t', editor_cmd)
         if len(set(map(os.path.dirname, assocs.keys()))) == 1:  # only one common prefix
             return os.path.basename(key.strip())
         return key.strip()  # different prefix -> some names could be equal
