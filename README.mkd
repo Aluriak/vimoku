@@ -23,7 +23,7 @@ You need to create the file `$XDG_CONFIG_HOME/vimoku/vimoku.ini` (Your `$XDG_CON
 The url is the url of your wiki. User and password are the login for the account you will use to publish your editions on the wiki.
 It therefore must be an existing dokuwiki user allowed to [use RTC calls](https://www.dokuwiki.org/devel:xmlrpc#get_it_working).
 
-Other options are available, notably `editor` to set the editor to choose and `editor_options` for its options. See [editor options section](#editor-options) for an example. This readme explains more options and features.
+Other options are available, notably `editor` to set the editor to choose its options. See [editor options section](#editor-options) for an example. This readme explains more options and features.
 
 
 ## setup (semi-manual)
