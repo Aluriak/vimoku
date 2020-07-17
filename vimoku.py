@@ -425,7 +425,8 @@ def move_page(fullpagename:str, newfullname:str, clients, delete_source:bool, re
     same_wiki = client_src == client_trg  # page is moved inside a wiki
     if try_lock(newname, client_trg):
         content = client_src.page(pagename)
-        r = client_trg.put_page(newname, content, f'moved from {pagename if same_wiki else fullpagename}')
+        verb = 'moved' if delete_source else 'copied'
+        r = client_trg.put_page(newname, content, f'{verb} from {pagename if same_wiki else fullpagename}')
         if r is not None:
             raise ValueError(f"Unexpected output for upload of page {newfullname}: {r}")
         # delete the source if asked to
