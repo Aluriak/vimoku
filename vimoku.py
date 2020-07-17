@@ -38,7 +38,7 @@ except ImportError:
 
 DEFAULT_EDITOR = 'vi'  # used if CLI, configfile and $EDITOR are empty.
 DEFAULT_MESSAGE = 'undocumented remote modification'
-DEBUG = True  # set to true to get many lines of logging
+DEBUG = False  # set to true to get many lines of logging
 DRY_RUN = False  # set to true to prevent any page modification
 REDIRECTION = 'This page has been moved [[{newname}|here]].'
 TERM_WIDTH = shutil.get_terminal_size().columns
