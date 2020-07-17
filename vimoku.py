@@ -39,6 +39,7 @@ except ImportError:
 
 DEFAULT_EDITOR = 'vi'  # used if CLI, configfile and $EDITOR are empty.
 DEFAULT_MESSAGE = 'undocumented remote modification'
+DEFAULT_SUPPRESSION_MESSAGE = 'page deleted'
 DEBUG = False  # set to true to get many lines of logging
 DRY_RUN = False  # set to true to prevent any page modification
 REDIRECTION = 'This page has been moved [[{newname}|here]].'
@@ -317,6 +318,7 @@ def edition_sequence(editor_cmd, edition_dir, fullpagenames, clients):
     run_editor(editor_cmd, filehashes)
     # detect and send the modified files
     modified_files = {}  # filename -> page
+    deleted_page_filenames = set()  # set of filenames which pages will be deleted by edition (i.e. no more content)
     for fname, (fullpagename, ini_hash) in filehashes.items():
         try:
             with open(fname) as fd:  new_hash = hash(fd.read())
@@ -325,7 +327,9 @@ def edition_sequence(editor_cmd, edition_dir, fullpagenames, clients):
         else:
             if new_hash != ini_hash:
                 modified_files[fname] = fullpagename
-    return edition_dir, modified_files, set(filehashes.keys())
+                if new_hash == hash(''):
+                    deleted_page_filenames.add(fname)
+    return edition_dir, modified_files, set(filehashes.keys()), deleted_page_filenames
 
 
 def upload_work(modified_files, messages:dict, clients):
@@ -389,11 +393,12 @@ def run_main_sequence(pages, message, config, clients, cli_args):
 
     # let's edit the pages
     editor_cmd = get_editor_command(config)
-    edition_dir, modified_files, all_files = edition_sequence(editor_cmd, edition_dir, pages, clients)
+    edition_dir, modified_files, all_files, deleted_page_filenames = edition_sequence(editor_cmd, edition_dir, pages, clients)
 
     # choose messages
     if modified_files:
-        messages = setdict_sequence(editor_cmd, {fname: message for fname in modified_files}, 'files', 'discard from upload')
+        messages = {fname: DEFAULT_SUPPRESSION_MESSAGE if fname in deleted_page_filenames else DEFAULT_MESSAGE for fname in modified_files}
+        messages = setdict_sequence(editor_cmd, messages, 'files', 'discard from upload')
 
     # upload
     if not DRY_RUN and modified_files:
