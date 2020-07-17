@@ -201,6 +201,22 @@ When setting multiple wikis in your ini file, you may use the option `default_wi
     password = passwordtwo
 
 
+## Aliases
+Any good system offers user-defined aliases, but keep in mind the converse error.
+
+Your aliases are set, under the `[option]` header (support for per-wiki aliases would be awesome, wouldn't it ?),
+as in the following example:
+
+    [options]
+    aliases = pp: c1:c2, aaaaaaa: a:a:a
+
+This allows you to open page `c1:c2` with `vimoku pp`, page `c1:c2:p` with `vimoku pp:p`, or page `a:a:a:stayingalive` with `aaaaaaa:stayingalive`.
+Note that this last alias is not really helpful. Choose better aliases, kids.
+
+Aliases substitution only occur at the *beginning* of the pagename. Hence, `vimoku a:pp:a` will happily open `a:pp:a`, not `a:c1:c2:a`.
+
+This is an arbitrary choice that, to me, seems to limit the number of unexpected behaviors when you are editing pages with long and weird names. Maybe that risk is worth the gain ?
+This i do not know. Tell me if you know something about that.
 
 
 # Work to be done

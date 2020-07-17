@@ -20,6 +20,7 @@ __version__ = '1.0.5.dev0'
 
 
 import os
+import re
 import time
 import shlex
 import shutil
@@ -180,6 +181,13 @@ def get_editor_command(configfile:str) -> str:
     config = read_config(configfile)
     editor = config['options']['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
     return editor
+
+def get_aliases(configfile:str) -> str:
+    config = read_config(configfile)
+    alias_string = config['options'].get('aliases', '')
+    aliases = []
+    REGEX_ALIAS = re.compile('([a-zA-Z0-9:._%-]+):\s+([a-zA-Z0-9:._%-]+)')
+    return dict(REGEX_ALIAS.findall(alias_string))
 
 def try_lock(allpagenames, clients):
     if isinstance(allpagenames, str): allpagenames = [allpagenames]
@@ -348,6 +356,19 @@ def cleanup_known(edition_dir, modified_files, known_files, client):
 def edit_pages(pages, message, config, clients, cli_args):
     while pages:
         pages = run_main_sequence(pages, message, config, clients, cli_args)
+
+
+def substitute_aliases(fullpagenames:[str], config) -> [str]:
+    """Return page names, with aliases substituted"""
+    aliases = get_aliases(config)
+    def replace_alias(fullpagename:str) -> str:
+        wiki, pagename = wiki_page_from_fullpagename(fullpagename, '')
+        for alias, value in aliases.items():
+            if pagename.startswith(alias):
+                return pagename.replace(alias, value, 1)
+        return fullpagename_from_wiki_page(wiki, pagename) if wiki else pagename
+    return tuple(map(replace_alias, fullpagenames))
+
 
 
 def run_main_sequence(pages, message, config, clients, cli_args):
@@ -569,6 +590,9 @@ if __name__ == '__main__':
         # print(p, has, len(content))
     # print(clients)
     # exit()
+
+    # handle aliases
+    pages = tuple(substitute_aliases(pages, args.config))
 
     if args.move_to:
         lprint('MOVE', args)
