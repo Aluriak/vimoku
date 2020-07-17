@@ -28,7 +28,12 @@ import argparse
 import subprocess
 import configparser
 from collections import defaultdict
-from dokuwikixmlrpc import DokuWikiClient, DokuWikiXMLRPCError
+try:
+    from dokuwikixmlrpc import DokuWikiClient, DokuWikiXMLRPCError
+except ImportError:
+    print('Python package dokuwikixmlrpc not installed.')
+    print('You may want to run something like `pip3 install dokuwikixmlrpc --user -U`')
+    exit(1)
 
 
 DEFAULT_EDITOR = 'vi'  # used if CLI, configfile and $EDITOR are empty.
