@@ -570,13 +570,15 @@ def move_pages(pagenames:[str], target:str, config:str, clients, delete_source:b
     if unmoved_pages:
         comment[0] = f"Done!  ({len(unmoved_pages)} pages couldn't be moved"
         comment.append(f'the unfixed pages are saved in {save_list_into_tempfile(unfixed_pages)}')
-    else:
+    elif moves:
         comment[0] = "Done!  (all pages have been moved"
+    else:  # no moves operated
+        comment[0] = "Done!  (no page have been moved"
     if fix_backlinks:
         if unfixed_pages:
             comment[0] += f" and {len(unfixed_pages)} pages with backlinks couldn't be fixed)"
             comment.append(f' the unfixed pages are saved in {save_list_into_tempfile(unfixed_pages)}')
-        else:
+        elif moves:
             comment[0] += f" and all pages with backlinks were fixed"
     comment[0] += ")"
     for line in comment:
