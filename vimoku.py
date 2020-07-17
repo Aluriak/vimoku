@@ -176,11 +176,10 @@ def get_client_from_parsed_config(config:configparser.ConfigParser) -> DokuWikiC
         return theclient
     return with_additional_methods(client)
 
-def get_editor_and_options(configfile:str):
+def get_editor_command(configfile:str) -> str:
     config = read_config(configfile)
-    editor_options = config['options']['editor_options']
     editor = config['options']['editor'] or os.environ.get('EDITOR') or DEFAULT_EDITOR
-    return editor, editor_options
+    return editor
 
 def try_lock(allpagenames, clients):
     if isinstance(allpagenames, str): allpagenames = [allpagenames]
@@ -228,20 +227,22 @@ def create_unique_dir(config) -> str:
     os.mkdir(edition_dir)
     return edition_dir
 
-def run_editor(editor, editor_options, filenames):
+def run_editor(editor_cmd, filenames):
     """Run editor properly. Finishes when user finishes."""
+    filenames = tuple(filenames)
     # print('FILES TO EDIT:', ', '.join(filenames))
-    comdir = os.path.commonpath(tuple(filenames))
+    comdir = os.path.commonpath(filenames)
     if not os.path.isdir(comdir):  # isfile would return False if there is only 1 filename, that is a new file not yet created on the system
         comdir = os.path.dirname(comdir)
-    options = shlex.split(editor_options.format(cwd=comdir))
-    command = [editor, *options, *filenames]
+    command = shlex.split(editor_cmd.format(pages=shlex.join(filenames), cwd=comdir))
+    if '{pages}' not in editor_cmd:  # add the page list at the end
+        command.extend(filenames)
     lprint('Invoking editor with:', command)
     p = subprocess.Popen(command)
     p.wait()
 
 
-def setdict_sequence(editor, editor_options, assocs:dict, objname='lines', action='remove from choices'):
+def setdict_sequence(editor_cmd, assocs:dict, objname='lines', action='remove from choices'):
     """Provide user with a list of lines. Return those that weren't deleted"""
     # get the best key representation
     def simplified_key(key:str) -> str:
@@ -259,7 +260,7 @@ def setdict_sequence(editor, editor_options, assocs:dict, objname='lines', actio
             fd.write(f"{revsimplassocs[key].ljust(max_key_len)}: {val}\n")
         fd.write(f"\n\n# lines starting with a '#' will be ignored.\n# edit lines freely, but keep the colons followed by a space.\n# delete {objname} you want to {action}.")
     # run the editor, retrieve the user's choice
-    run_editor(editor, editor_options, [tmpfile])
+    run_editor(editor_cmd, [tmpfile])
     assocs = {}
     with open(tmpfile) as fd:
         for line in fd:
@@ -270,13 +271,13 @@ def setdict_sequence(editor, editor_options, assocs:dict, objname='lines', actio
     return assocs
 
 
-def choice_sequence(editor, editor_options, choices, objname='lines', action='remove from choices'):
+def choice_sequence(editor_cmd, choices, objname='lines', action='remove from choices'):
     """Provide user with a list of lines. Return those that weren't deleted"""
     # create the file to edit, and run the editor
     with tempfile.NamedTemporaryFile('w', delete=False) as fd:
         tmpfile = fd.name
         fd.write('\n'.join(map(str, choices)) + '\n\n' + f"# lines starting with a '#' will be ignored.\n# delete {objname} you want to {action}.")
-    run_editor(editor, editor_options, [tmpfile])
+    run_editor(editor_cmd, [tmpfile])
     # get the user's choices
     kept = []
     with open(tmpfile) as fd:
@@ -289,7 +290,7 @@ def choice_sequence(editor, editor_options, choices, objname='lines', action='re
     return kept
 
 
-def edition_sequence(editor, editor_options, edition_dir, fullpagenames, clients):
+def edition_sequence(editor_cmd, edition_dir, fullpagenames, clients):
     # retrieve each page, put it in the edition directory
     filehashes = {}  # filename -> (page, hash)   (to later determine if a modification was made)
     for fullpagename in fullpagenames:
@@ -305,7 +306,7 @@ def edition_sequence(editor, editor_options, edition_dir, fullpagenames, clients
             # NB: if the file doesn't exist, let the editor create it ; it will indicate the «new file» status to the user, confirming the inexistance of the file on the wiki.
         filehashes[fname] = fullpagename, hash(content)
     # edition
-    run_editor(editor, editor_options, filehashes)
+    run_editor(editor_cmd, filehashes)
     # detect and send the modified files
     modified_files = {}  # filename -> page
     for fname, (fullpagename, ini_hash) in filehashes.items():
@@ -366,12 +367,12 @@ def run_main_sequence(pages, message, config, clients, cli_args):
         exit()
 
     # let's edit the pages
-    editor, editor_options = get_editor_and_options(config)
-    edition_dir, modified_files, all_files = edition_sequence(editor, editor_options, edition_dir, pages, clients)
+    editor_cmd = get_editor_command(config)
+    edition_dir, modified_files, all_files = edition_sequence(editor_cmd, edition_dir, pages, clients)
 
     # choose messages
     if modified_files:
-        messages = setdict_sequence(editor, editor_options, {fname: message for fname in modified_files}, 'files', 'discard from upload')
+        messages = setdict_sequence(editor_cmd, {fname: message for fname in modified_files}, 'files', 'discard from upload')
 
     # upload
     if not DRY_RUN and modified_files:
@@ -382,7 +383,7 @@ def run_main_sequence(pages, message, config, clients, cli_args):
     # cleanup
     new_files = tuple(map(os.path.basename, cleanup_known(edition_dir, modified_files, all_files, clients)))
     if new_files:
-        new_files = choice_sequence(editor, editor_options, new_files, 'files', 'discard from upload')
+        new_files = choice_sequence(editor_cmd, new_files, 'files', 'discard from upload')
     print(f"Done !  ({len(modified_files) or 'no'} files uploaded, {len(new_files) or 'no'} new files)")
     return new_files
 
@@ -517,8 +518,8 @@ def move_pages(pagenames:[str], target:str, config:str, clients, delete_source:b
         return
 
     # let user edit the moves
-    editor, editor_options = get_editor_and_options(config)
-    moves = setdict_sequence(editor, editor_options, moves, objname='renames' if delete_source else 'copies', action='cancel')
+    editor_cmd = get_editor_command(config)
+    moves = setdict_sequence(editor_cmd, moves, objname='renames' if delete_source else 'copies', action='cancel')
 
     # make the moves, fix backlinks
     unmoved_pages, unfixed_pages = set(), set()

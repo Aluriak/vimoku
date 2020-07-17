@@ -172,14 +172,18 @@ NB: if you wrote things in those manually opened files, you will loose your data
 
 
 ## editor options
-Your `vimoku.ini` accept the option `editor`, to explicitely set the editor if you don't trust your `$EDITOR` environment variable, and the option `editor_options`, which is formated with the variable `cwd`, the path to the directory holding the files you will be editing. Files to open are fed after those options.
+Your `vimoku.ini` accept the option `editor`, to explicitely set the editor command if you don't trust your `$EDITOR` environment variable or wants to provide options to your editor.
+
+It is formated with the variables `{cwd}`, the path to the directory holding the files you will be editing, and `{pages}`, that list the pages to be edited. If `{pages}` is not given, files to open are fed at the end of the command.
+
 For instance, using vim, i ended up with the following value:
 
     [options]
-    editor=/usr/bin/vim
-    editor_options=-c ":cd {cwd}" -p
+    editor=/usr/bin/vim -c ":cd {cwd}" -p
 
-This ensures that vim opens each file in its tab (`-p`), and uses the temporary directory containing all files as working dir so opening more files is easy (`-c "…"`).
+This ensures that vim opens each file in its own tab (`-p`), and uses the temporary directory containing all files as working dir so opening more files is easy (`-c ":cd {cwd}"`, where `{cwd}` will be substituted by the path to current working directory).
+
+Note that since pages are added by default after the command, i didn't have to explicitely add `{pages}` after the `-p` option. I could have. I didn't.
 
 
 ## Set a different default wiki
@@ -207,3 +211,4 @@ When setting multiple wikis in your ini file, you may use the option `default_wi
 - use `tmpfile` instead of flooding `.config/vimoku`
 - is it possible to upload a media ? yes, it is. see `client.put_file`
 - there is few TODOs in the code.
+- aliases in config file, where writing `aliases = pp: c1:c2` makes command `vimoku pp:a` edit page `c1:c2:a`
