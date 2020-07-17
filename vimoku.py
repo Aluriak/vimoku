@@ -602,13 +602,16 @@ if __name__ == '__main__':
 
     # handle aliases
     pages = tuple(substitute_aliases(pages, args.config))
+    aliased_and_sanitized_page = lambda p: tuple(substitute_aliases([sanitize_input_pagename(p)], args.config))[0]
 
     if args.move_to:
         lprint('MOVE', args)
-        move_pages(pages, sanitize_input_pagename(args.move_to), args.config, clients, delete_source=True, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
+        target = aliased_and_sanitized_page(args.move_to)
+        move_pages(pages, target, args.config, clients, delete_source=True, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
     elif args.copy_to:
         lprint('COPY', args)
-        move_pages(pages, sanitize_input_pagename(args.move_to), args.config, clients, delete_source=False, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
+        target = aliased_and_sanitized_page(args.copy_to)
+        move_pages(pages, target, args.config, clients, delete_source=False, redirect=args.redirect, fix_backlinks=args.fix_backlinks)
     else:  # just do page edition
         lprint('EDIT', args)
         edit_pages(pages, args.message, args.config, clients, args)
