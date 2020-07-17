@@ -568,14 +568,15 @@ def move_pages(pagenames:[str], target:str, config:str, clients, delete_source:b
     print()  # jump line
 
     # print info for user
+    verb = 'moved' if delete_source else 'copied'
     comment = ['']
     if unmoved_pages:
-        comment[0] = f"Done!  ({len(unmoved_pages)} pages couldn't be moved"
+        comment[0] = f"Done!  ({len(unmoved_pages)} pages couldn't be {verb}"
         comment.append(f'the unfixed pages are saved in {save_list_into_tempfile(unfixed_pages)}')
     elif moves:
-        comment[0] = "Done!  (all pages have been moved"
+        comment[0] = f"Done!  (all pages have been {verb}"
     else:  # no moves operated
-        comment[0] = "Done!  (no page have been moved"
+        comment[0] = f"Done!  (no page have been {verb}"
     if fix_backlinks:
         if unfixed_pages:
             comment[0] += f" and {len(unfixed_pages)} pages with backlinks couldn't be fixed)"
