@@ -422,22 +422,23 @@ def move_page(fullpagename:str, newfullname:str, clients, delete_source:bool, re
     # create the target page
     client_src, pagename = client_page_from_fullpagename(fullpagename, clients)
     client_trg, newname = client_page_from_fullpagename(newfullname, clients)
+    same_wiki = client_src == client_trg  # page is moved inside a wiki
     if try_lock(newname, client_trg):
         content = client_src.page(pagename)
-        r = client_trg.put_page(newname, content, f'moved from {fullpagename}')
+        r = client_trg.put_page(newname, content, f'moved from {pagename if same_wiki else fullpagename}')
         if r is not None:
             raise ValueError(f"Unexpected output for upload of page {newfullname}: {r}")
         # delete the source if asked to
         if delete_source:
             if try_lock(pagename, client_src):
                 content = REDIRECTION.format(newname=newfullname, pagename=fullpagename) if redirect else ''
-                client_src.put_page(pagename, content, f'moved to {newfullname}')
+                client_src.put_page(pagename, content, f'moved to {newname if same_wiki else newfullname}')
                 try_unlock(pagename, client_src)
             else:
-                print(f"Source {pagename} couldn't be deleted (locked)")
+                print(f"Source {pagename if same_wiki else fullpagename} couldn't be deleted (locked)")
         # unlock and quit
         if not try_unlock(newname, client_trg):
-            lprint(f"Couldn't unlock page {newfullname}.")
+            lprint(f"Couldn't unlock page {newname if same_wiki else newfullname}.")
         return True
 
 def list_named_pages(pagenames:[str], client) -> [str]:
