@@ -472,27 +472,30 @@ def compute_moves(fullpagenames:[str], fulltarget:str, clients):
         "true if moving pagename to category wouldn't overwrite an existing page"
         return not client_trg.has_page(moved_name(pagename, category))
 
+    # if there is multiple pages to move, the target is necessarily a namespace
     client_trg, target = client_page_from_fullpagename(fulltarget, clients)
-    if client_trg.has_page(target) and not target.endswith(':'):  # target is an existing page. It therefore must be understood as a category
+    if len(fullpagenames) > 1 and not target.endswith(':'):
         target += ':'
     target_wiki = wikiname_from_fullname(fulltarget, clients.default_name)
 
     if len(fullpagenames) == 1 and not fullpagenames[0].endswith((':', ':*')):  # it's a single page
         fullpagename = fullpagenames[0]
         client_src, pagename = client_page_from_fullpagename(fullpagename, clients)
+        # print(f"{pagename=}    {target=}")
+        # print(f"{client_src.has_page(pagename)=}    {client_trg.has_page(target)=}    {target_is_explicit_category()=}    {is_movable(pagename, target)=}")
         if client_src.has_page(pagename):
             if target_is_explicit_category():
                 if is_movable(pagename, target):
                     yield fullpagename, fullpagename_from_wiki_page(target_wiki, moved_name(pagename, target))
                 else:
-                    print("error: Page {moved_name(pagename, target)} already exists, can't move {pagename} to {target}.")
+                    print(f"error: Page {moved_name(pagename, target)} already exists, can't move {pagename} to {target}.")
                     yield fullpagename, None
-            else:  # target is a non existing page
+            else:  # target is a page
                 if client_trg.has_page(target):
-                    raise ValueError("Wiki {target_wiki} already has a page {target}.")
+                    lprint(f"Wiki {target_wiki} already has a page {target}. It will be overwritten.")
                 yield fullpagename, fullpagename_from_wiki_page(target_wiki, target)  # direct renaming
         else:
-            print(f'error: Page {fullpagename} does not exists.')
+            print(f"error: Page {fullpagename} does not exists.")
             yield None, pagename  # first item being None is equivalent to "that page doesn't exists"
     else:  # there is multiple pages to move (multiple pagenames, or one pagename that is a category)
         # target must be a category (because it can't be a file)
